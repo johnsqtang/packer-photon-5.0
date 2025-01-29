@@ -4,6 +4,11 @@ packer {
       version = ">= 1.1.3"
       source  = "github.com/hashicorp/hyperv"
     }
+
+    vmware = {
+      version = "~> 1"
+      source  = "github.com/hashicorp/vmware"
+    }
   }
 }
 
@@ -24,6 +29,10 @@ variable "headless" {
 variable "vm_name" {
   type    = string
   default = "Photon 5.0"
+  validation {
+    condition     = length(var.vm_name) > 0
+    error_message = "The vm_name must not be empty."
+  }  
 }
 
 variable "vm_cpus" {
@@ -77,7 +86,17 @@ variable "keep_registered" {
   default = false
 }
 
-variable "boot_command" {
+variable "boot_command_bios" {
+  type = list(string)
+  default = [
+	"<tab>", 
+	"<end>", 
+	" ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.json insecure_installation=1",
+    "<wait5s><enter>"
+  ]
+}
+
+variable "boot_command_efi" {
   type = list(string)
   default = [
 	"e", 
@@ -113,6 +132,16 @@ variable "use_lvm" {
   default     = false
 }
 
+variable "firmware" {
+  type    = string
+  # Allowed values are bios or efi
+  default = ""
+  validation {
+    condition     = length(var.firmware) == 0 || var.firmware == "bios" || var.firmware == "efi"
+    error_message = "The firmware must be 'bios' or 'efi' or blank (in such case the code will default to 'bios' or 'efi' automatically)."
+  }  
+}
+
 source "hyperv-iso" "vm-hyperv" {
   headless         = var.headless
 
@@ -120,7 +149,7 @@ source "hyperv-iso" "vm-hyperv" {
   iso_url               = "${var.iso_url}"
   iso_checksum          = "${var.iso_checksum}"
   boot_wait    = "1s" # this must be adjusted according to machine speed. 1s is working for me and 5s is too much.
-  boot_command = var.boot_command
+  boot_command = var.boot_command_efi
   http_content = {
     "/ks.json" = templatefile("${abspath(path.root)}/http/ks.pkrtpl.json", {
 	  hostname = var.hostname
@@ -132,13 +161,14 @@ source "hyperv-iso" "vm-hyperv" {
       boot_partition_size = var.boot_partition_size
       root_partition_size = var.root_partition_size
       swap_partition_size = var.swap_partition_size
+	  provider = "hyperv"
     })
   }
   first_boot_device = "DVD" 
   
   # vm profile
   vm_name        = var.vm_name
-  generation     = 2
+  generation     = 2 # always as Generation 1 is not working.
   enable_secure_boot    = false
   enable_dynamic_memory = false
   guest_additions_mode  = "disable"
@@ -166,6 +196,61 @@ source "hyperv-iso" "vm-hyperv" {
   output_directory = "${var.output_directory}/hyperv/${var.vm_name}"
 }
 
+source "vmware-iso" "vm-vmware" {
+  # show up when being built
+  headless         = var.headless
+
+  # boot related
+  iso_url          = "${var.iso_url}"
+  iso_checksum     = "${var.iso_checksum}"
+  
+  boot_wait    = "5s" # adjust this based on your own environment
+  boot_command = coalesce(var.firmware, "bios") == "bios" ? var.boot_command_bios : var.boot_command_efi
+  http_content = {
+    "/ks.json" = templatefile("${abspath(path.root)}/http/ks.pkrtpl.json", {
+	  hostname = var.hostname
+	  target_disk    = "sda"
+	  bootmode = coalesce(var.firmware, "bios")
+      ssh_username   = var.ssh_username
+      ssh_password   = var.ssh_password
+	  use_lvm = convert(var.use_lvm, string)
+      boot_partition_size = var.boot_partition_size
+      root_partition_size = var.root_partition_size
+      swap_partition_size = var.swap_partition_size
+	  provider = "vmware"
+    })
+  }
+  
+  # vm profile
+  vm_name          = "${var.vm_name}"
+  version          = "21" # vmware workstation 17 or above
+  # vm os type
+  guest_os_type    = "vmware-photon-64"
+
+  # Allowed values are bios, efi, and efi-secure (for secure boot)
+  firmware = coalesce(var.firmware, "bios")
+
+  # disk
+  disk_size        = "${var.vm_disk_size}"
+  disk_adapter_type = "sata"
+  cdrom_adapter_type = "sata"
+  
+  # memory & CPU configuration
+  memory    = var.vm_memory
+  cpus      = var.vm_cpus
+  
+  ssh_username     = "${var.ssh_username}"
+  ssh_password     = "${var.ssh_password}"
+  ssh_timeout      = "30m"
+  shutdown_command = "shutdown -P now"
+  
+  # post build
+  keep_registered = var.keep_registered
+  skip_compaction = false
+  skip_export     = var.skip_export
+  output_directory = "${var.output_directory}/vmware-workstation/${var.vm_name}"
+}
+
 build {
-   sources = ["source.hyperv-iso.vm-hyperv"]
+	sources = ["source.hyperv-iso.vm-hyperv", "source.vmware-iso.vm-vmware"]
 }

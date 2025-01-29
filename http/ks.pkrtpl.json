@@ -38,14 +38,18 @@
    "packagelist_file":"packages_minimal.json",
    "postinstall":[
       "#!/bin/bash -x",
-      "chage -I -1 -m 0 -M 99999 -E -1 ${ssh_username}",
       "sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config",
       "sed -i 's/.*MaxAuthTries.*/MaxAuthTries 10/g' /etc/ssh/sshd_config",
+%{ if "${provider}" == "hyperv" ~}
 	  "tdnf install -y hyper-v",
       "systemctl enable hv_fcopy_daemon",
       "systemctl enable hv_vss_daemon",
 	  "systemctl enable hv_kvp_daemon",
 	  "systemctl disable vmtoolsd",
-  	  "tdnf remove -y open_vm_tools"
+%{ endif ~}
+%{ if "${provider}" != "vmware" ~}
+  	  "tdnf remove -y open_vm_tools",
+%{ endif ~}
+      "chage -I -1 -m 0 -M 99999 -E -1 ${ssh_username}"
    ]
 }
