@@ -5,15 +5,20 @@ packer {
       source  = "github.com/hashicorp/hyperv"
     }
 
-    vmware = {
-      version = "~> 1"
-      source  = "github.com/hashicorp/vmware"
+    proxmox = {
+      version = ">= 1.1.3"
+      source  = "github.com/hashicorp/proxmox"
     }
-	
+
     virtualbox = {
       version = ">= v1.1.1"
       source  = "github.com/hashicorp/virtualbox"
     }	
+	
+    vmware = {
+      version = "~> 1"
+      source  = "github.com/hashicorp/vmware"
+    }
   }
 }
 
@@ -147,7 +152,9 @@ variable "firmware" {
   }  
 }
 
-# start of variables specific to virtual box
+#
+# variables specific to virtual box --> start
+#
 variable "virtualbox_guest_additions_url" {
   type    = string
 }
@@ -160,8 +167,82 @@ variable "gfx_vram_size" {
   type    = number
   default = 128
 }
+#
+# variables specific to virtual box <-- end
+#
 
-# end of variables specific to virtual box
+#
+# variables specific to proxmox --> start
+#
+variable "proxmox_node" {
+  type    = string
+  # default = "pve"
+}
+
+variable "proxmox_host" {
+  type = string
+  default = env("PROXMOX_HOST")
+}
+
+variable "proxmox_api_token_id" {
+  type = string
+  default = env("PROXMOX_API_TOKEN_ID")
+}
+
+variable "proxmox_api_token" {
+  type = string
+  default = env("PROXMOX_API_TOKEN")
+}
+
+variable "proxmox_disk_storage_pool" {
+  type    = string
+  # default = "local-lvm"
+}
+
+variable "proxmox_cloudinit_storage_pool" {
+  type    = string
+  # default = "local-lvm"
+}
+
+# used by proxmox only
+variable "proxmox_disk_format" {
+  type    = string
+  default = "raw"
+}
+
+variable "proxmox_cpu_type" {
+  type    = string
+  default = "host"
+  # The CPU type to emulate. See the Proxmox API documentation for the complete list of accepted values. 
+  # For best performance, set this to host. Defaults to kvm64.
+}
+
+variable "proxmox_iso_images_loc_prefix" {
+  type    = string
+}
+
+# not specific to proxmox but used only by the proxmox provider atm
+variable "http_bind_address" {
+  type    = string
+}
+
+variable "vm_cpus_sockets" {
+  type    = number
+  default = 1
+}
+
+#
+# variables specific to proxmox <-- end
+#
+
+locals {
+  firmware = coalesce(var.firmware, "bios")
+  
+  # convert firmware ("bios" or "efi") to integer
+  # 1 - bios
+  # 2 - efi
+  generation = 1 + index(["bios", "efi"], local.firmware) 
+}
 
 source "hyperv-iso" "vm-hyperv" {
   headless         = var.headless
@@ -189,7 +270,7 @@ source "hyperv-iso" "vm-hyperv" {
   
   # vm profile
   vm_name        = var.vm_name
-  generation     = 2 # always as Generation 1 is not working.
+  generation     = 2 # hard-code to 2 regardless of what is passed for "firmware" as generation 1 is not working
   enable_secure_boot    = false
   enable_dynamic_memory = false
   guest_additions_mode  = "disable"
@@ -226,12 +307,12 @@ source "vmware-iso" "vm-vmware" {
   iso_checksum     = "${var.iso_checksum}"
   
   boot_wait    = "5s" # adjust this based on your own environment
-  boot_command = coalesce(var.firmware, "bios") == "bios" ? var.boot_command_bios : var.boot_command_efi
+  boot_command = local.firmware == "bios" ? var.boot_command_bios : var.boot_command_efi
   http_content = {
     "/ks.json" = templatefile("${abspath(path.root)}/http/ks.pkrtpl.json", {
 	  hostname = var.hostname
 	  target_disk    = "sda"
-	  bootmode = coalesce(var.firmware, "bios")
+	  bootmode = local.firmware
       ssh_username   = var.ssh_username
       ssh_password   = var.ssh_password
 	  use_lvm = convert(var.use_lvm, string)
@@ -249,7 +330,7 @@ source "vmware-iso" "vm-vmware" {
   guest_os_type    = "vmware-photon-64"
 
   # Allowed values are bios, efi, and efi-secure (for secure boot)
-  firmware = coalesce(var.firmware, "bios")
+  firmware = local.firmware
 
   # disk
   disk_size        = "${var.vm_disk_size}"
@@ -276,13 +357,13 @@ source "virtualbox-iso" "vm-virtualbox" {
   # boot related
   iso_url          = var.iso_url
   iso_checksum     = var.iso_checksum
-  boot_command     = coalesce(var.firmware, "bios") == "bios" ? var.boot_command_bios : var.boot_command_efi
+  boot_command     = local.firmware == "bios" ? var.boot_command_bios : var.boot_command_efi
   boot_wait        = "5s"
   http_content = {
     "/ks.json" = templatefile("${abspath(path.root)}/http/ks.pkrtpl.json", {
 	  hostname = var.hostname
 	  target_disk    = "sda"
-	  bootmode = coalesce(var.firmware, "bios")
+	  bootmode = local.firmware
       ssh_username   = var.ssh_username
       ssh_password   = var.ssh_password
 	  use_lvm = convert(var.use_lvm, string)
@@ -294,7 +375,7 @@ source "virtualbox-iso" "vm-virtualbox" {
   }
   
   vm_name                = var.vm_name
-  firmware = coalesce(var.firmware, "bios")
+  firmware = local.firmware
   guest_os_type          = "Linux_64"
   guest_additions_path   = "/root/VBoxGuestAdditions.iso"
   
@@ -326,7 +407,91 @@ source "virtualbox-iso" "vm-virtualbox" {
   output_directory = "${var.output_directory}/virtualbox/${var.vm_name}"
 }
 
+source "proxmox-iso" "vm-proxmox" {
+  # proxmox credentials
+  proxmox_url = "https://${var.proxmox_host}/api2/json"
+  username    = "${var.proxmox_api_token_id}"
+  token       = "${var.proxmox_api_token}"
+  insecure_skip_tls_verify = true
+  node        = var.proxmox_node
+  
+  vm_name  = "photon-5-template"
+  # vm_id = 8189 # could specify the proxmox vm id.
+  
+  cpu_type = var.proxmox_cpu_type
+  os       = "l26" # 2.6+
+  memory   = var.vm_memory
+  cores    = var.vm_cpus
+  sockets  = var.vm_cpus_sockets
+  
+  # force to "bios" as efi doesn't seem to be working for Photon 5
+  bios = "seabios"
+  
+  boot_wait      = "5s"
+  boot_command   = var.boot_command_bios # force to "bios" as efi doesn't seem to be working for Photon 5
+  boot_iso {
+    type = "sata"
+    iso_file = "${var.proxmox_iso_images_loc_prefix}/${basename(var.iso_url)}"
+    unmount = true
+  }
+  
+  # important for Windows. this IP must be accessible to the proxmox server
+  http_bind_address = var.http_bind_address
+  http_port_min = 8000
+  http_port_max = 8999
+  http_content = {
+    "/ks.json" = templatefile("${abspath(path.root)}/http/ks.pkrtpl.json", {
+	  hostname = var.hostname
+	  target_disk    = "sda"
+	  bootmode = "bios" # force to "bios" as efi doesn't seem to be working for Photon 5
+      ssh_username   = var.ssh_username
+      ssh_password   = var.ssh_password
+	  use_lvm = convert(var.use_lvm, string)
+      boot_partition_size = var.boot_partition_size
+      root_partition_size = var.root_partition_size
+      swap_partition_size = var.swap_partition_size
+	  provider = "proxmox"
+    })
+  }
+
+  template_description = "Built from ${basename(var.iso_url)} on ${formatdate("YYYY-MM-DD hh:mm:ss ZZZ", timestamp())}"
+
+  network_adapters {
+    bridge   = "vmbr0"
+    firewall = true
+    model    = "virtio"
+    vlan_tag = var.vlan_id
+  }
+  
+  disks {
+    disk_size    = "${var.vm_disk_size}M"
+    format       = var.proxmox_disk_format
+    io_thread    = true
+    storage_pool = var.proxmox_disk_storage_pool
+    type         = "scsi"
+  }
+  scsi_controller = "virtio-scsi-single"
+  
+  cloud_init              = false
+  cloud_init_storage_pool = var.proxmox_cloudinit_storage_pool
+
+  ssh_username     = "${var.ssh_username}"
+  ssh_password     = "${var.ssh_password}"
+  ssh_timeout           = "60m"
+}
 
 build {
-	sources = ["source.hyperv-iso.vm-hyperv", "source.vmware-iso.vm-vmware", "source.virtualbox-iso.vm-virtualbox"]
+	sources = [
+		"source.hyperv-iso.vm-hyperv", 
+		"source.vmware-iso.vm-vmware", 
+		"source.virtualbox-iso.vm-virtualbox", 
+		"source.proxmox-iso.vm-proxmox" 
+	]
+	
+	provisioner "shell" {
+		only = ["proxmox-iso.vm-proxmox"]
+		inline = [ "rm /etc/systemd/system/install-qemu-guest-agent.service",
+                   "rm /root/build-qemu-guest-agent.sh"
+		         ]
+	}  
 }
