@@ -9,6 +9,11 @@ packer {
       version = "~> 1"
       source  = "github.com/hashicorp/vmware"
     }
+	
+    virtualbox = {
+      version = ">= v1.1.1"
+      source  = "github.com/hashicorp/virtualbox"
+    }	
   }
 }
 
@@ -142,6 +147,22 @@ variable "firmware" {
   }  
 }
 
+# start of variables specific to virtual box
+variable "virtualbox_guest_additions_url" {
+  type    = string
+}
+
+variable "virtualbox_guest_additions_sha256" {
+  type    = string
+}
+
+variable "gfx_vram_size" {
+  type    = number
+  default = 128
+}
+
+# end of variables specific to virtual box
+
 source "hyperv-iso" "vm-hyperv" {
   headless         = var.headless
 
@@ -251,6 +272,61 @@ source "vmware-iso" "vm-vmware" {
   output_directory = "${var.output_directory}/vmware-workstation/${var.vm_name}"
 }
 
+source "virtualbox-iso" "vm-virtualbox" {
+  # boot related
+  iso_url          = var.iso_url
+  iso_checksum     = var.iso_checksum
+  boot_command     = coalesce(var.firmware, "bios") == "bios" ? var.boot_command_bios : var.boot_command_efi
+  boot_wait        = "5s"
+  http_content = {
+    "/ks.json" = templatefile("${abspath(path.root)}/http/ks.pkrtpl.json", {
+	  hostname = var.hostname
+	  target_disk    = "sda"
+	  bootmode = coalesce(var.firmware, "bios")
+      ssh_username   = var.ssh_username
+      ssh_password   = var.ssh_password
+	  use_lvm = convert(var.use_lvm, string)
+      boot_partition_size = var.boot_partition_size
+      root_partition_size = var.root_partition_size
+      swap_partition_size = var.swap_partition_size
+	  provider = "vmware"
+    })
+  }
+  
+  vm_name                = var.vm_name
+  firmware = coalesce(var.firmware, "bios")
+  guest_os_type          = "Linux_64"
+  guest_additions_path   = "/root/VBoxGuestAdditions.iso"
+  
+  guest_additions_url    = var.virtualbox_guest_additions_url
+  guest_additions_sha256 = var.virtualbox_guest_additions_sha256
+  
+  cpus                   = var.vm_cpus
+  memory                 = var.vm_memory
+  disk_size              = var.vm_disk_size
+  hard_drive_interface   = "scsi"     # var.disk_adapter_vbx
+  gfx_controller         = "vboxsvga" # var.gfx_controller_vbx
+  gfx_vram_size          = var.gfx_vram_size
+  headless               = var.headless
+
+  iso_interface = "sata"
+  
+  # boot_keygroup_interval = "10ms"  # var.boot_key_interval
+  
+  # ssh
+  ssh_username     = "${var.ssh_username}"
+  ssh_password     = "${var.ssh_password}"
+  ssh_timeout      = "30m"
+  ssh_wait_timeout       = "15m" # var.ssh_timeout
+  shutdown_command       = "echo '${var.ssh_password}' | sudo -S -E shutdown -P now"
+
+  # post build
+  keep_registered = var.keep_registered
+  skip_export     = var.skip_export
+  output_directory = "${var.output_directory}/virtualbox/${var.vm_name}"
+}
+
+
 build {
-	sources = ["source.hyperv-iso.vm-hyperv", "source.vmware-iso.vm-vmware"]
+	sources = ["source.hyperv-iso.vm-hyperv", "source.vmware-iso.vm-vmware", "source.virtualbox-iso.vm-virtualbox"]
 }
