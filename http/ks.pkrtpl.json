@@ -1,0 +1,51 @@
+{
+   "arch": "x86_64",
+   "hostname":"{hostname}",
+   "password":{
+      "crypted":false,
+      "text":"${ssh_password}"
+   },
+   "disk":"/dev/${target_disk}",
+   "partitions":[
+%{ if "${bootmode}" == "efi" ~}
+%{ if "${use_lvm}" == "true" ~}
+       {"mountpoint": "/", "size": 0, "filesystem": "ext4", "lvm":{"vg_name":"vg1", "lv_name":"rootfs"}},
+       {"mountpoint": "/boot", "size": ${boot_partition_size}, "filesystem": "ext4"},
+       {"mountpoint": "/root", "size": ${root_partition_size}, "filesystem": "ext4","lvm":{"vg_name":"vg1", "lv_name":"root"}},
+       {"size": ${swap_partition_size}, "filesystem": "swap","lvm":{"vg_name":"vg2", "lv_name":"swap"}}
+%{ else ~}
+	   {"mountpoint": "/", "size": 0, "filesystem": "ext4"},
+	   {"mountpoint": "/boot", "size": ${boot_partition_size}, "filesystem": "ext4"},
+	   {"mountpoint": "/root", "size": ${root_partition_size}, "filesystem": "ext4"},
+	   {"size": ${swap_partition_size}, "filesystem": "swap"}   
+%{ endif ~}
+%{ else ~}
+%{ if "${use_lvm}" == "true" ~}
+       { "mountpoint":"/", "size":0, "filesystem":"ext4", "lvm":{ "vg_name":"vg1", "lv_name":"rootfs" } },
+       { "mountpoint":"/boot", "size":${boot_partition_size}, "filesystem":"ext4" },
+       { "mountpoint":"/root", "size":${root_partition_size}, "filesystem":"ext4", "lvm":{ "vg_name":"vg1", "lv_name":"root" } },
+       { "size":128, "filesystem":"swap", "lvm":{ "vg_name":"vg2", "lv_name":"swap" } }
+%{ else ~}
+       { "mountpoint":"/", "size":0, "filesystem":"ext4" },
+       { "mountpoint":"/boot", "size":${boot_partition_size}, "filesystem":"ext4" },
+       { "mountpoint":"/root", "size":${root_partition_size}, "filesystem":"ext4" },
+       { "size":${swap_partition_size}, "filesystem":"swap" }
+%{ endif ~}
+%{ endif ~}
+   ],
+   "bootmode":"${bootmode}",
+   "linux_flavor":"linux",
+   "packagelist_file":"packages_minimal.json",
+   "postinstall":[
+      "#!/bin/bash -x",
+      "chage -I -1 -m 0 -M 99999 -E -1 ${ssh_username}",
+      "sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config",
+      "sed -i 's/.*MaxAuthTries.*/MaxAuthTries 10/g' /etc/ssh/sshd_config",
+	  "tdnf install -y hyper-v",
+      "systemctl enable hv_fcopy_daemon",
+      "systemctl enable hv_vss_daemon",
+	  "systemctl enable hv_kvp_daemon",
+	  "systemctl disable vmtoolsd",
+  	  "tdnf remove -y open_vm_tools"
+   ]
+}

@@ -46,11 +46,6 @@ variable "output_directory" {
   default = "output"
 }
 
-variable "temp_path" {
-  type    = string
-  default = "temp"
-}
-
 variable "ssh_username" {
   type    = string
   default = "root"
@@ -93,6 +88,31 @@ variable "boot_command" {
   ]
 }
 
+variable "hostname" {
+  type    = string
+  default = "photon5"
+}
+
+variable "boot_partition_size" { # in MB
+  type        = number
+  default     = 128
+}
+
+variable "root_partition_size" { # in MB
+  type        = number
+  default     = 128
+}
+
+variable "swap_partition_size" { # in MB
+  type        = number
+  default     = 128
+}
+
+variable "use_lvm" {
+  type        = bool
+  default     = false
+}
+
 source "hyperv-iso" "vm-hyperv" {
   headless         = var.headless
 
@@ -101,7 +121,19 @@ source "hyperv-iso" "vm-hyperv" {
   iso_checksum          = "${var.iso_checksum}"
   boot_wait    = "1s" # this must be adjusted according to machine speed. 1s is working for me and 5s is too much.
   boot_command = var.boot_command
-  http_directory = "http"
+  http_content = {
+    "/ks.json" = templatefile("${abspath(path.root)}/http/ks.pkrtpl.json", {
+	  hostname = var.hostname
+	  target_disk    = "sda"
+	  bootmode = "efi"  # must be "efi" (generation 2 for Hyper-V)
+      ssh_username   = var.ssh_username
+      ssh_password   = var.ssh_password
+	  use_lvm = convert(var.use_lvm, string)
+      boot_partition_size = var.boot_partition_size
+      root_partition_size = var.root_partition_size
+      swap_partition_size = var.swap_partition_size
+    })
+  }
   first_boot_device = "DVD" 
   
   # vm profile
@@ -132,7 +164,6 @@ source "hyperv-iso" "vm-hyperv" {
   keep_registered = var.keep_registered
   skip_export = var.skip_export
   output_directory = "${var.output_directory}/hyperv/${var.vm_name}"
-  # temp_path        = "${var.temp_path}"
 }
 
 build {
