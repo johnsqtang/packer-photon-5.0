@@ -66,7 +66,7 @@ Go to the packer-photon-5.0 folder and then issue the following command:
   ```
 
 ## Build
-The output for Hyper-V, VMware Workstation, Oracle Virtualbox and QEMU goes to output\. The output template for Proxmox, of cause, goes to Proxmox server.
+The output for Hyper-V, VMware Workstation, Oracle Virtualbox and QEMU goes to the *output/* sub folder. The output of the template for Proxmox, of cause, goes to Proxmox server.
 
 ### Basic Usage
 #### Build Hyper-v VM
@@ -94,6 +94,25 @@ The compling process takes place inside a docker and there is no screen output d
   ```console
   packer build -only 'qemu.*' .
   ```
+Then we could launch the built VM image like below using qemu-system-x86_64:
+
+On Linux:
+  ```console
+  qemu-system-x86_64 -m size=2048m \
+    -enable-kvm -cpu host \
+    -device virtio-scsi-pci,id=scsi0 \
+    -drive if=none,file=output/qemu/photon-minimal-5.0-dde71ec57.x86_64.iso.qcow2,format=qcow2,id=disk0 \
+    -device scsi-hd,drive=disk0
+  ```
+On Windows (including WSYS2) console:
+  ```console
+  qemu-system-x86_64 -m size=2048m  \
+    -machine type=pc,accel=whpx,kernel-irqchip=off \
+    -device virtio-scsi-pci,id=scsi0 \
+    -drive if=none,file=output/qemu/photon-minimal-5.0-dde71ec57.x86_64.iso.qcow2,format=qcow2,id=disk0 \
+    -device scsi-hd,drive=disk0
+  ```
+
 #### Build for All Supported Hypervisor Providers
   ```console
   packer build .
@@ -105,7 +124,17 @@ We could pass variable values from command line to fine-tune VM to be built. For
   ```console
   packer build -only 'hyperv-iso.*' -var vm_disk_size 20000 .
   ```
-Those variables defined in *photon.pkr.hcl* but not in those .auto.pkrvars.hcl files can be passed in form of *-var variable_name=value*.
+
+If we would also like the virtual machine name to be 'Photon 5.0 built by Packer', we could do this:
+  ```console
+  packer build -only 'hyperv-iso.*' -var vm_disk_size 20000 -var 'vm_name=Photon 5.0 built by Packer' 20000 .
+
+  # or
+  packer build -only 'hyperv-iso.*' -var vm_disk_size 20000 -var vm_name='Photon 5.0 built by Packer' 20000 .
+  ```
+Note that we have to put quotes as the value contains spaces.
+
+Those input variables defined in *photon.pkr.hcl* but not in .auto.pkrvars.hcl files can be passed in form of *-var variable_name=value*.
 
 ## bios or uefi
 
