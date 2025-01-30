@@ -16,7 +16,7 @@ The above versions have been tested and other versions of hypervisors may or may
 * [Packer](https://www.packer.io/downloads.html)
   * <https://www.packer.io/intro/getting-started/install.html>
 * Hypervisors
-  * [Windows Hyper-V] (optional)
+  * Windows Hyper-V: Windows feature enabled (optional)
   * [VMware Workstation](https://www.vmware.com/products/workstation-pro.html) (optional)
   * [Oracle VirtualBox](https://www.virtualbox.org/) (optional)
   * [QEMU for Windows (MSYS2 UCRT64)](https://www.qemu.org/download/#windows) (optional)
@@ -68,36 +68,44 @@ Go to the packer-photon-5.0 folder and then issue the following command:
 ## Build
 The output for Hyper-V, VMware Workstation, Oracle Virtualbox and QEMU goes to output\. The output template for Proxmox, of cause, goes to Proxmox server.
 
-### Build Hyper-v VM
+### Basic Usage
+#### Build Hyper-v VM
   ```console
-  packer build -force -only 'hyperv-iso.*' .
+  packer build -only 'hyperv-iso.*' .
   ```
-### Build VMware Workstation VM
+#### Build VMware Workstation VM
   ```console
-  packer build -force -only 'vmware-iso.*' .
+  packer build -only 'vmware-iso.*' .
   ```
-### Build Oracle Virtualbox VM
+#### Build Oracle Virtualbox VM
   ```console
-  packer build -force -only 'virtualbox-iso.*' .
+  packer build -only 'virtualbox-iso.*' .
   ```
-### Build Proxmox VM Template
+#### Build Proxmox VM Template
   ```console
-  packer build -force -only 'proxmox-iso.*' .
+  packer build -only 'proxmox-iso.*' .
   ```
 During the build process, qemu-guest-agent is being compiled using [snapshotleisure's SPEC](https://github.com/snapshotleisure/photon-os-qemu-guest-agent), which utilize [Photon OS's build_spec.sh]([https://github.com/vmware/photon.git](https://github.com/vmware/photon/blob/master/tools/scripts/build_spec.sh). 
 Once qemu-guest-agent is built successfully, it will be installed on the VM. 
 
 The compling process takes place inside a docker and there is no screen output during the stage. It takes time and just be patient!
 
-### Build QEMU .qcow VM Image
+#### Build QEMU .qcow VM Image
   ```console
-  packer build -force -only 'qemu.*' .
+  packer build -only 'qemu.*' .
   ```
-### Build for All Supported Hypervisor Providers
+#### Build for All Supported Hypervisor Providers
   ```console
   packer build .
   ```
 This would takes quite a while depending on the speed of the build machine.
+
+### Advanced Usage
+We could pass variable values from command line to fine-tune VM to be built. For example, if we would like to build a Hyper-V vm with disk size of 20G, we could do this:
+  ```console
+  packer build -only 'hyperv-iso.*' -var vm_disk_size 20000 .
+  ```
+Those variables defined in *photon.pkr.hcl* but not in those .auto.pkrvars.hcl files can be passed in form of *-var variable_name=value*.
 
 ## bios or uefi
 
