@@ -85,12 +85,12 @@ The output for Hyper-V, VMware Workstation, Oracle Virtualbox and QEMU goes to o
   ```console
   packer build -only 'proxmox-iso.*' .
   ```
-During the build process, qemu-guest-agent is being compiled using [snapshotleisure's SPEC](https://github.com/snapshotleisure/photon-os-qemu-guest-agent), which utilize [Photon OS's build_spec.sh]([https://github.com/vmware/photon.git](https://github.com/vmware/photon/blob/master/tools/scripts/build_spec.sh). 
+During the build process, qemu-guest-agent is being compiled using [snapshotleisure SPEC](https://github.com/snapshotleisure/photon-os-qemu-guest-agent), which utilizes [Photon OS's build_spec.sh](https://github.com/vmware/photon/blob/master/tools/scripts/build_spec.sh). 
 Once qemu-guest-agent is built successfully, it will be installed on the VM. 
 
 The compling process takes place inside a docker and there is no screen output during the stage. It takes time and just be patient!
 
-#### Build QEMU .qcow VM Image
+#### Build QEMU .qcow2 VM Image
   ```console
   packer build -only 'qemu.*' .
   ```
