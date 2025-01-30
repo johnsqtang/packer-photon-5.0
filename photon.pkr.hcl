@@ -10,6 +10,11 @@ packer {
       source  = "github.com/hashicorp/proxmox"
     }
 
+    qemu = {
+      version = "~> 1"
+      source  = "github.com/hashicorp/qemu"
+    }
+
     virtualbox = {
       version = ">= v1.1.1"
       source  = "github.com/hashicorp/virtualbox"
@@ -55,9 +60,9 @@ variable "vm_memory" {
   default = 4096
 }
 
-variable "vm_disk_size" {
+variable "vm_disk_size" { # in MB
   type    = number
-  default = 20000
+  default = 10000
 }
 
 variable "output_directory" {
@@ -152,6 +157,11 @@ variable "firmware" {
   }  
 }
 
+variable "windir" {
+  type    = string
+  default = env("WINDIR")
+}
+
 #
 # variables specific to virtual box --> start
 #
@@ -236,12 +246,16 @@ variable "vm_cpus_sockets" {
 #
 
 locals {
+  is_on_windows = length(var.windir) > 0
+  
   firmware = coalesce(var.firmware, "bios")
   
   # convert firmware ("bios" or "efi") to integer
   # 1 - bios
   # 2 - efi
   generation = 1 + index(["bios", "efi"], local.firmware) 
+  
+  qcow2_filename = trimspace(basename("${var.iso_url}.qcow2"))
 }
 
 source "hyperv-iso" "vm-hyperv" {
@@ -399,7 +413,7 @@ source "virtualbox-iso" "vm-virtualbox" {
   ssh_password     = "${var.ssh_password}"
   ssh_timeout      = "30m"
   ssh_wait_timeout       = "15m" # var.ssh_timeout
-  shutdown_command       = "echo '${var.ssh_password}' | sudo -S -E shutdown -P now"
+  shutdown_command = "shutdown -P now"
 
   # post build
   keep_registered = var.keep_registered
@@ -480,12 +494,78 @@ source "proxmox-iso" "vm-proxmox" {
   ssh_timeout           = "60m"
 }
 
+source "qemu" "vm-qemu" {
+  accelerator = "kvm"
+  # accelerator (string) - The accelerator type to use when running the VM. This may be none, kvm, tcg, hax, hvf, whpx, or xen.
+  # accelerator = "whpx"
+
+  # show up when being built
+  headless         = var.headless
+
+  # boot related
+  iso_url          = "${var.iso_url}"
+  iso_checksum     = "${var.iso_checksum}"
+  boot_command     = var.boot_command_bios
+  boot_wait        = "3s"
+  http_content = {
+    "/ks.json" = templatefile("${abspath(path.root)}/http/ks.pkrtpl.json", {
+	  hostname = var.hostname
+	  target_disk    = "sda"
+	  bootmode = "bios"
+      ssh_username   = var.ssh_username
+      ssh_password   = var.ssh_password
+	  use_lvm = convert(var.use_lvm, string)
+      boot_partition_size = var.boot_partition_size
+      root_partition_size = var.root_partition_size
+      swap_partition_size = var.swap_partition_size
+	  provider = "qemu"
+    })
+  }
+  
+  vm_name = trimspace(basename("${var.iso_url}.qcow2"))
+  disk_compression = true
+  disk_interface = "virtio-scsi"
+  cdrom_interface = "ide"
+  disk_size      = var.vm_disk_size
+  format         = "qcow2"
+  qemuargs    = concat(
+     [["-m", "${var.vm_memory}M"], ["-smp", "${var.vm_cpus}"]],
+	 local.is_on_windows ? 
+	 [
+	    # on Windows
+		["-machine", "type=pc,accel=whpx,kernel-irqchip=off"],
+	    # fix for Windows so that 2 sda drives (cdrom + hd) are generated as it seems that Photon 5.0 installer works with such configuration on Windows.
+		# rebuild qemu command line parameters.
+		["-device", "virtio-scsi-pci,id=scsi0"],
+		["-drive", "file=${var.iso_url},if=none,index=2,id=cdrom0,media=cdrom"],
+		["-device", "scsi-cd,drive=cdrom0,id=sata.cd"],
+		["-drive", "if=none,file=output/qemu/${local.qcow2_filename},id=drive0,cache=writeback,discard=ignore,format=qcow2,index=1"],
+		["-device", "scsi-hd,drive=drive0,id=sata.hd"]
+	 ] : 
+	 [
+	    # assume that the build environment is on Linux
+		["-enable-kvm"],
+		["-cpu", "host"],
+        ["-machine", "pc-q35-8.2"]
+	 ])
+	 
+  shutdown_command = "shutdown -P now"
+
+  # ssh
+  ssh_username     = "${var.ssh_username}"
+  ssh_password     = "${var.ssh_password}"
+  ssh_timeout      = "30m"
+  
+  output_directory = "${var.output_directory}/qemu"
+}
+
 build {
 	sources = [
 		"source.hyperv-iso.vm-hyperv", 
-		"source.vmware-iso.vm-vmware", 
+		"source.proxmox-iso.vm-proxmox", 
+		"source.qemu.vm-qemu", 
 		"source.virtualbox-iso.vm-virtualbox", 
-		"source.proxmox-iso.vm-proxmox" 
+		"source.vmware-iso.vm-vmware",
 	]
 	
 	provisioner "shell" {
