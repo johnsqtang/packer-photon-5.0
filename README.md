@@ -1,4 +1,4 @@
-# Packer Templates for VMware Photon OS
+# Packer Templates for Photon OS
 ## Introduction
 This repository provides packer templates to build [Photon OS](https://vmware.github.io/photon/) 5.0 virtual machines for the following hypervisors/providers:
 * Windows Hyper-V
