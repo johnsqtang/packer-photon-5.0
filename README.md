@@ -5,11 +5,31 @@ This repository provides packer templates to build Photon 5.0 OS virtual machine
 * Vmware Workstation (v17.6+)
 * Oracle Virtualbox (v7.16+)
 * Proxmox (v8.0.2)
-* QEMU for Windows (v9.2.0)
-* QEMU/KVM in Linux (v8.2.2)
+* QEMU .qcow2 images
+  * Build on Windows using QEMU for Windows (v9.2.0) 
+  * Build on Linux with QEMU/KVM installed
 
 The above versions have been tested and other versions of hypervisors may or may not work.
 
+## Prerequisites
+
+* [Packer](https://www.packer.io/downloads.html)
+  * <https://www.packer.io/intro/getting-started/install.html>
+* Hypervisors
+  * [Windows Hyper-V] (optional)
+  * [VMware Workstation](https://www.vmware.com/products/workstation-pro.html) (optional)
+  * [Oracle VirtualBox](https://www.virtualbox.org/) (optional)
+  * [QEMU for Windows (MSYS2 UCRT64)](https://www.qemu.org/download/#windows) (optional)
+* ISO maker (used by packer)
+  * On Windows 10+: it is suggested to install **oscdimg.exe**
+    * Visit https://go.microsoft.com/fwlink/?linkid=2271337 to download *adksetup.exe*
+    * Run *Windows Assessment and Deployment Kit* (adksetup.exe)
+    * Take the default installation path *C:\Program Files (x86)\Windows Kits\10\*
+    * Uncheck all other except the *Deployment Tools* option
+    * Add *C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\x86\Oscdimg* (working for both 32 and 64 bits) or *C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg* (working for 64 bit only) to your System or User PATH.
+    * Go to DOS and type **oscdimg.exe** followed by RETURN to test whether oscdimg.exe can be run successfully.
+  * On Linux: install mkisofs
+     
 ## Get Started
 
 ### Step 1 - Clone the Repository
@@ -64,3 +84,10 @@ Go to the packer-photon-5.0 folder and then issue the following command:
   ```console
   packer build .
   ```
+## Default credentials
+
+The default credentials for built VM image are:
+
+|Username|Password|
+|--------|--------|
+|root|Pssword1!|
