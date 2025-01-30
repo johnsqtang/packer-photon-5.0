@@ -41,6 +41,8 @@
       "sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config",
       "sed -i 's/.*MaxAuthTries.*/MaxAuthTries 10/g' /etc/ssh/sshd_config",
       "sed -i '$s/$/ console=ttyS0,115200n8/' /boot/systemd.cfg",
+      "echo 'set nocompatible' | tee /root/.vimrc",
+      "echo 'set backspace=2'  | tee -a /root/.vimrc",	  
 %{ if "${provider}" == "hyperv" ~}
 	  "tdnf install -y hyper-v",
       "systemctl enable hv_fcopy_daemon",
