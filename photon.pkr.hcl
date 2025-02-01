@@ -157,10 +157,39 @@ variable "firmware" {
   }  
 }
 
+variable "qemu_windows_machine" {
+  type = string
+}
+
+variable "qemu_windows_cpu" {
+  type = string
+}
+
 variable "windir" {
   type    = string
   default = env("WINDIR")
 }
+
+#
+# variables specific to hyper-v <-- start
+#
+variable "enable_virtualization_extensions" {
+  type    = bool
+  default = false
+}
+
+variable "enable_mac_spoofing" {
+  type    = bool
+  default = false
+}
+
+variable "enable_dynamic_memory" {
+  type    = bool
+  default = false
+}
+#
+# variables specific to hyper-v <-- end
+#
 
 #
 # variables specific to virtual box --> start
@@ -180,6 +209,7 @@ variable "gfx_vram_size" {
 #
 # variables specific to virtual box <-- end
 #
+
 
 #
 # variables specific to proxmox --> start
@@ -286,7 +316,6 @@ source "hyperv-iso" "vm-hyperv" {
   vm_name        = var.vm_name
   generation     = 2 # hard-code to 2 regardless of what is passed for "firmware" as generation 1 is not working
   enable_secure_boot    = false
-  enable_dynamic_memory = false
   guest_additions_mode  = "disable"
  
   cpus           = var.vm_cpus
@@ -296,6 +325,14 @@ source "hyperv-iso" "vm-hyperv" {
   # network
   switch_name  = var.switch_name
   vlan_id      = var.vlan_id
+
+  # nested virtualization  
+  # when enable_virtualization_extensions = true
+  #   enable_mac_spoofing must be set to true
+  #   enable_dynamic_memory must be set to false
+  enable_virtualization_extensions = var.enable_virtualization_extensions
+  enable_mac_spoofing = var.enable_mac_spoofing || var.enable_virtualization_extensions
+  enable_dynamic_memory = var.enable_dynamic_memory && !var.enable_virtualization_extensions
 
   # ssh
   communicator          = "ssh"
@@ -533,7 +570,8 @@ source "qemu" "vm-qemu" {
 	 local.is_on_windows ? 
 	 [
 	    # on Windows
-		["-machine", "type=pc,accel=whpx,kernel-irqchip=off"],
+		["-machine", "${var.qemu_windows_machine}"],
+		["-cpu", "${var.qemu_windows_cpu}"],
 	    # fix for Windows so that 2 sda drives (cdrom + hd) are generated as it seems that Photon 5.0 installer works with such configuration on Windows.
 		# rebuild qemu command line parameters.
 		["-device", "virtio-scsi-pci,id=scsi0"],
@@ -546,7 +584,7 @@ source "qemu" "vm-qemu" {
 	    # assume that the build environment is on Linux
 		["-enable-kvm"],
 		["-cpu", "host"],
-        ["-machine", "pc-q35-8.2"]
+        ["-machine", "pc-q35"]
 	 ])
 	 
   shutdown_command = "shutdown -P now"
