@@ -1,6 +1,6 @@
 {
    "arch": "x86_64",
-   "hostname":"{hostname}",
+   "hostname":"${hostname}",
    "password":{
       "crypted":false,
       "text":"${ssh_password}"
