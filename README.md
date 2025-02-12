@@ -21,6 +21,7 @@ The above versions have been tested and other versions of hypervisors may or may
   * [Oracle VirtualBox](https://www.virtualbox.org/) (optional)
   * [QEMU for Windows (MSYS2 UCRT64)](https://www.qemu.org/download/#windows) (optional)
 * Install ISO maker (used by packer)
+  * On Linux: install mkisofs. See https://github.com/marcinbojko/hv-packer/
   * On Windows 10+: it is suggested to install **oscdimg.exe**
     * Visit https://go.microsoft.com/fwlink/?linkid=2271337 to download *adksetup.exe*
     * Run *Windows Assessment and Deployment Kit* (adksetup.exe)
@@ -28,12 +29,12 @@ The above versions have been tested and other versions of hypervisors may or may
     * Uncheck all other except the *Deployment Tools* option
     * Add *C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\x86\Oscdimg* (working for both 32 and 64 bits) or *C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg* (working for 64 bit only) to your System or User PATH.
     * Go to DOS and type **oscdimg.exe** followed by RETURN to test whether oscdimg.exe can be run successfully.
-  * Open firewall ports 8000-9000 (default ports used by packer when building a http server on the fly).
-    * On Windows: go to powershell in admin mode and then run (credits to [marcinbojko/hv-packer](https://github.com/marcinbojko/hv-packer/)):
-      ```powershell
-      Remove-NetFirewallRule -DisplayName "Packer_http_server" -Verbose
-      New-NetFirewallRule -DisplayName "Packer_http_server" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8000-9000
-
+* Open firewall ports 8000-9000 (default ports used by packer when building a http server on the fly).
+  * On Windows: go to powershell in admin mode and then run (credits to [marcinbojko/hv-packer](https://github.com/marcinbojko/hv-packer/)):
+    ```powershell
+    Remove-NetFirewallRule -DisplayName "Packer_http_server" -Verbose
+    New-NetFirewallRule -DisplayName "Packer_http_server" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8000-9000
+    ```
     If *Remove-NetFirewallRule : No MSFT_NetFirewallRule objects found with property 'DisplayName' equal to 'Packer_http_server'.  Verify the value of the property and retry.* is seen, it is ok; just ignore it.
 
     Something similar to the below should be displayed:
@@ -61,8 +62,6 @@ The above versions have been tested and other versions of hypervisors may or may
     RemoteDynamicKeywordAddresses : {}
     PolicyAppId                   :
     ```
-  * On Linux: install mkisofs. See https://github.com/marcinbojko/hv-packer/
-
 ## Get Started
 
 ### Step 1 - Clone the Repository
